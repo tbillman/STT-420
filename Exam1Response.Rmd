@@ -1,0 +1,156 @@
+---
+title: "STT 420 Exam 1"
+author: "Thomas Billman"
+date: "October 18, 2018"
+output: html_document
+---
+
+We begin this reponse by reading in our data:
+```{r Data Reading}
+dat <- read.csv(file = url("https://raw.githubusercontent.com/tbillman/STT-420/master/Exam1data.csv"))
+dat 
+attach(dat)
+```
+Also our provided codebook gives us the following information about the variables:
+
+ID- Subject identification
+
+duration - Duration of closure in days
+
+age - age of university in years
+
+category - storm category, 6 levels from 0 (tropical storm) to 5 (category 5 hurricane)
+
+public - Whether or not the university is public, 1: Yes, 0: No
+
+coastal - Whether or not the university is considered coastal, 1: Yes, 0: No
+
+####1) Create tables and summary graphs for the data. Describe what you find from these in a sentence or two.
+
+We begin by creating tables and graphs:
+
+```{r Tables and Graphs}
+boxplot(duration)
+boxplot(age)
+table(category)
+table(public)
+table(coastal)
+summary(dat)
+```
+
+The boxplot and summary of the duration variable shows that the inner 50% of the data lies between 6 and 12 days. However this data has two outlying values of 32 days and 92 days. 
+
+The age variable seems fairly normally distributed without any outlying points.
+
+The category variable shows that the most likely storms are category 1 or 2, with moderate probabilities for categories 0 or 3. There were very few cases of category 4 or 5 hurricanes. 
+
+18 of our 25 universities were public.
+
+19 of our 25 universities were coastal.
+
+####2) It is of interest to know if the duration of closure is affected by whether or not a univesity is public or private. Answer this question descriptively using combinations of numeric, graphic, and testing methods. Include a sentence or two describing your results. (Hint: Can we assume normality?)
+
+To address this concern we constructing a simple linear model to view initial results.
+
+```{r SLM1}
+slm <- lm(duration ~ public)
+summary(slm)
+plot(slm)
+```
+This summary shows that there is not a significant relationship, however we have two points that seem out of the ordinary. To address this we inspect them individually.
+
+```{r Outlier Analysis}
+dat[6:8,]
+```
+
+Given that observation 6 was the only category 5 hurricane and had a duration completely different than the rest of the dataset, it seems to warrant exclusion. Although observation 7 and 8 were also influential, given that we have other category 3 and 4 hurricanes to compare them to I choose to leave them in the dataset.
+
+```{r Outlier Removal}
+newdat <- dat[c(-6,-26:-50),]
+detach(dat)
+attach(newdat)
+newslm <- lm(duration ~ public)
+summary(newslm)
+plot(newslm)
+```
+
+In this case observation 7 still stands out, however the rest of our plots look fairly supportive of the assumptions behind linear regression. Given that the summary of the linear model still shows a p-value greater than .05 for $H_o:\hat\beta_{public}=0$ and $H_a:\hat\beta_{public}\neq0$ we fail to reject $H_o$ and can not conclude that there exists a relationship between just whether an institution is public or private and the recovery duration.
+
+####3) What smaple size would be needed to be able to detect a difference of this size with a power of 0.8 and a significance level of 0.05? (Hint: Difference in the mean duration of closure for public and private universities).
+
+To estimate this sample size we use the formula for comparing independent means:
+
+$N = \frac{2(Z_{1-\alpha/2} + Z_{1-\beta})^2}{\Delta^2}$
+where $\Delta = \frac{\mu_1-\mu_0}{\sigma}$
+
+we estimate $\mu_1$ and $\mu_0$ as the mean durations for private and public schools respectively. We estimate $\sigma$ as the total standard deviation of the duration. And let $\alpha = .05$ and $1-\beta = .8$
+
+```{r Sample Size}
+m1 <- mean(duration[public==0]) ;m1
+m0 <- mean(duration[public==1]) ;m0
+
+sig <- sd(duration)   ;sig
+
+del <- (m1-m0)/sig    ;del
+
+za <- qnorm(p = .975) ;za
+zb <- qnorm(p = .8)   ;zb
+
+N <- 2*((za + zb)^2)/(del^2)
+N
+```
+
+This implies we would need a sample size of 50 with equal sized samples of 25 private and 25 public universities. 
+
+####4) Calculate sensitivity, specificity, AUC, and RR and test for an association between category vs. public and coastal vs. public. Interpret all results, and compare the relationships in words. (Hints: first create two by two tables, and think about what test is appropriate for this size data).
+
+####5) If the duration of closure was approximately normally distributed with a mean of 11.5 days and a standard deviation of 3 days, what is the probability that, following a hurricane, a university is closed for: (don't simply state the probability, write a senence about it.)
+
+####a) between 8.5 and 14.5 days?
+
+To calculate this probability we begin by translating 8.5 days and 14.5 days to z scores using the following formula:
+
+$Z = \frac{x-\mu}{\sigma}$
+
+where $\mu = 11$ and $\sigma = 3$.
+
+This leads us to the following Z values:
+
+$Z_{8.5} = -.8\bar{3}$
+
+$Z_{14.5} = 1.1\bar{6}$
+
+Then we compute the probability a random observation on the standard normal table would be less than $Z_{14.5}$ but greater than $Z_{8.5}$. This can be computed as $\Phi(Z_{14.5}) - \Phi(Z_{8.5})$
+
+```{r Probability Calculation}
+z1 <- (8.5-11)/3
+z0 <- (14.5 - 11)/3
+pnorm(z0) - pnorm(z1)
+```
+
+This means there is a 67.6\% chance that a random closure would be between 8.5 and 11.5 days.
+
+We follow the above process for the next two parts of the question:
+
+####b) Over 10 days.
+
+This will be calculated as $1 - \Phi(Z_{10})$
+```{r Probability Calculation 2}
+z <- (10-11)/3
+1 - pnorm(z)
+```
+
+This means there is a 63.1\% chance that a random closure would be greater than 10 days.
+
+####c) Under 12 days.
+
+This will be calculated as $\Phi(Z_{12})$
+
+```{r Probability Calculation 3}
+z <- (12-11)/3
+pnorm(z)
+```
+
+This means there is a 63.1\% chance that a random closure would be under 12 days. It is worth noting that this is the same probability as the previous subquestion due to the symmetry of the normal distribution.
+
+####6) In question 4 we dichotomized the category variable to calculate the requested statistics. How can we test the association between the full category of hurrican variable (without dichotomization) and type of university (public vs. private)? Perofrm this test and inerpret the results. (Hint: Are these test results reasonable?)
