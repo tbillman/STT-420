@@ -25,6 +25,8 @@ public - Whether or not the university is public, 1: Yes, 0: No
 
 coastal - Whether or not the university is considered coastal, 1: Yes, 0: No
 
+
+
 ####1) Create tables and summary graphs for the data. Describe what you find from these in a sentence or two.
 
 We begin by creating tables and graphs:
@@ -48,6 +50,8 @@ The category variable shows that the most likely storms are category 1 or 2, wit
 
 19 of our 25 universities were coastal.
 
+
+
 ####2) It is of interest to know if the duration of closure is affected by whether or not a univesity is public or private. Answer this question descriptively using combinations of numeric, graphic, and testing methods. Include a sentence or two describing your results. (Hint: Can we assume normality?)
 
 To address this concern we constructing a simple linear model to view initial results.
@@ -57,13 +61,14 @@ slm <- lm(duration ~ public)
 summary(slm)
 plot(slm)
 ```
-This summary shows that there is not a significant relationship, however we have two points that seem out of the ordinary. To address this we inspect them individually.
+
+This summary shows that there is not a significant relationship, however we have a few points that seem out of the ordinary. To address this we inspect them individually.
 
 ```{r Outlier Analysis}
 dat[6:8,]
 ```
 
-Given that observation 6 was the only category 5 hurricane and had a duration completely different than the rest of the dataset, it seems to warrant exclusion. Although observation 7 and 8 were also influential, given that we have other category 3 and 4 hurricanes to compare them to I choose to leave them in the dataset.
+Given that observation 6 was the only category 5 hurricane and had a duration completely different than the rest of the dataset, it seems to warrant exclusion. Although observation 7 and 8 were also influential, but given that we have other category 3 and 4 hurricanes to compare them to I choose to leave them in the dataset. I also remove the 25 observations of empty data.
 
 ```{r Outlier Removal}
 newdat <- dat[c(-6,-26:-50),]
@@ -75,6 +80,8 @@ plot(newslm)
 ```
 
 In this case observation 7 still stands out, however the rest of our plots look fairly supportive of the assumptions behind linear regression. Given that the summary of the linear model still shows a p-value greater than .05 for $H_o:\hat\beta_{public}=0$ and $H_a:\hat\beta_{public}\neq0$ we fail to reject $H_o$ and can not conclude that there exists a relationship between just whether an institution is public or private and the recovery duration.
+
+
 
 ####3) What smaple size would be needed to be able to detect a difference of this size with a power of 0.8 and a significance level of 0.05? (Hint: Difference in the mean duration of closure for public and private universities).
 
@@ -102,9 +109,55 @@ N
 
 This implies we would need a sample size of 50 with equal sized samples of 25 private and 25 public universities. 
 
+
+
 ####4) Calculate sensitivity, specificity, AUC, and RR and test for an association between category vs. public and coastal vs. public. Interpret all results, and compare the relationships in words. (Hints: first create two by two tables, and think about what test is appropriate for this size data).
 
+
+
+####Category vs. Public
+
+We begin with a table of category vs. public.
+```{r Table1}
+table(category,public)
+```
+
+Additionally, we need to install/load the pROC package for R to easily construct an ROC curve
+
+```{r ROC1}
+#install.packages("pROC")
+library(pROC)
+curve <- roc(public,category)
+curve
+plot(curve)
+```
+This shows that the sensitivity and specificity are not well related between category and public. Additionally, our AUC was only .5 which is very insignificant. 
+
+
+
+####Coastal vs. Public
+
+
+We begin with a table of coastal vs. public.
+```{r Table2}
+table(coastal,public)
+```
+
+Then we construct our ROC curve
+
+```{r ROC2}
+curve <- roc(public,coastal)
+curve
+plot(curve)
+chisq.test(table(coastal,public))
+```
+This suggests a more significant relationship. If we use the cutoff between 0 and 1 our sensitivity is 16/18 and our specificity is 4/6. Our AUC here is .7778 which is better than .5. To do an additional test, we conduct a chi squared goodness of fit test with a continuity correction to get a p value of ~.03 indicating some statistical association between whether a school is coastal and if it is public.
+
+
+
 ####5) If the duration of closure was approximately normally distributed with a mean of 11.5 days and a standard deviation of 3 days, what is the probability that, following a hurricane, a university is closed for: (don't simply state the probability, write a senence about it.)
+
+
 
 ####a) between 8.5 and 14.5 days?
 
@@ -132,6 +185,8 @@ This means there is a 67.6\% chance that a random closure would be between 8.5 a
 
 We follow the above process for the next two parts of the question:
 
+
+
 ####b) Over 10 days.
 
 This will be calculated as $1 - \Phi(Z_{10})$
@@ -141,6 +196,8 @@ z <- (10-11)/3
 ```
 
 This means there is a 63.1\% chance that a random closure would be greater than 10 days.
+
+
 
 ####c) Under 12 days.
 
@@ -153,4 +210,17 @@ pnorm(z)
 
 This means there is a 63.1\% chance that a random closure would be under 12 days. It is worth noting that this is the same probability as the previous subquestion due to the symmetry of the normal distribution.
 
-####6) In question 4 we dichotomized the category variable to calculate the requested statistics. How can we test the association between the full category of hurrican variable (without dichotomization) and type of university (public vs. private)? Perofrm this test and inerpret the results. (Hint: Are these test results reasonable?)
+
+
+####6) In question 4 we dichotomized the category variable to calculate the requested statistics. How can we test the association between the full category of hurrican variable (without dichotomization) and type of university (public vs. private)? Perofrm this test and interpret the results. (Hint: Are these test results reasonable?)
+
+
+In this case we would use the Wilcoxon rank test to compare an oridinal covariate to a binary response. 
+
+```{r Rank Test}
+table(category,public)
+wilcox.test(table(category,public))
+```
+
+This shows us that there exists a significant relationship between category and public university given that our p-value was ~ .005. However, this may also be a result of more public universities being coastal as shown in the second part of problem 4.
+ 
