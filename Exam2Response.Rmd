@@ -1,0 +1,6 @@
+---
+title: "Exam 2 Response"
+author: "Thomas Billman"
+date: "November 18, 2018"
+output: html_document
+---
