@@ -4,3 +4,149 @@ author: "Thomas Billman"
 date: "November 18, 2018"
 output: html_document
 ---
+
+###Reading in the data
+
+```{r}
+library("tidyverse")
+dat <- read_csv(file = url("https://raw.githubusercontent.com/tbillman/STT-420/master/graduation.csv"))
+attach(dat)
+```
+
+#####1. In survival analysis, the summary table 1 typically examines how the covariates (parttime, age, gpa, dblmaj) differ by event status. Be sure to include counts/measures of center and measure of significance. Create a single summary table 1, include appropriate figures, and write an interpretive paragraph.
+
+```{r}
+grad <- which(event == T)
+
+table(event,prttime)
+table(event,dblmaj)
+
+boxplot(age[grad],
+          age[-grad],
+          at = 1:2, width = c(.25,.25),
+          names = c("Graudated", "Did not Graduate"),
+          ylab= "Age")
+boxplot(age[-grad], add = T, at = 2, width = .25)
+
+
+boxplot(gpa[grad],
+          gpa[-grad],
+          at = 1:2, width = c(.25,.25),
+          names = c("Graudated", "Did not Graduate"),
+          ylab = "GPA")
+boxplot(gpa[-grad], add = T, at = 2, width = .25)
+
+
+
+
+```
+
+These summary tables and boxplots show a few interesting pieces of information upon a first glance. In our dataset, those with a part time job were ~7.1x as likely to not graduate as compared to those who did not work part time. The odds ratio for double majors was very close to one, so it seems  unlikely that having a double major contributes to graduation before adjusting for other covariates. An interesting property of the ages of our observations is that all 75 students who enrolled after age 25 graduated. Additionally, there seemed to be a high number of students with GPAs less than or equal to 2 who graduated. Surprisingly, students that fell into this category actually had a dropout rate ~ 25% lower than those with a GPA > 2. This may suggest the university has a program to advise and mentor these students.
+
+
+
+#####2. Fit a survival model for the data of interest. Present your best model. Explain why you fit the model you do, what covariates you use and why, examine model diagnostics, and write an interpretive paragraph.
+
+```{r}
+library(survival)
+S1 <- Surv(time, event)
+fit1 <- survfit(S1 ~ 1)
+plot(fit1, xlab = 'time', ylab = expression(hat(S)*(t)))
+```
+
+This is our inital model before accounting for any variables
+
+```{r}
+fit2 <- survfit(S1 ~ prttime)
+plot(fit2, xlab = 'time', ylab = expression(hat(S)*(t)),
+     col = c(1,2))
+legend("bottomright", c("No Part-Time Job", "Part-Time Job"), col = c(1,2), lty = 1, bty = "n")
+```
+This model accounts for whether or not a particular student has a part time job. This shows that students without a part time job seem to leave the college significantly faster, but we can confirm this with a log-rank test.
+
+```{r}
+survdiff(S1 ~ prttime)
+```
+
+The fact that this p-value is 0 shows that there is a significant difference between these curves.
+
+```{r}
+
+fit3 <- survfit(S1 ~ prttime + dblmaj)
+plot(fit3, xlab = 'time', ylab = expression(hat(S)*(t)),
+     col = 1:4)
+legend("bottomright", c("Neither", "Double Major Only", "Part-Time Only", "Both"), col = 1:4, lty = 1, bty = "n")
+
+```
+
+This shows what happenes if we also factor in whether the student is a double major. Given that the curves involving double majors do not deviate very far from the part-time curves, we will not use this variable in further analysis.
+
+```{r}
+fit4 <- survreg(S1 ~ age + gpa, dist = 'weibull')
+summary(fit4)
+
+fit5 <- survreg(S1 ~ age, dist = 'weibull')
+summary(fit5)
+
+
+x <- seq(0,.003, .00001)
+plot(x,1-pweibull(x,scale=1/  exp  (sum(-fit4$coefficients)),shape=fit4$scale),xlab   ="time",  ylab=expression(hat(S)*"(t)"),type="l") 
+lines(x,1-pweibull(x,scale=1/  exp  (sum(-fit5$coefficients)),shape=fit5$scale),col=2)
+legend("bottomleft",c("Age + GPA", "Age Only"), col= 1:2, lty = rep(1,2), bty = "n")
+```
+
+This shows that GPA does not significantly add to the regression model. Therefore it would make sense to consider a final model accounting for both age and part time jobs. Additionally, the parameter estimate for age implies that for every year increase in age, we expect time to increase by a factor of `r exp(-summary(fit4)$coeff[2])`, or roughly 8%.
+
+```{r}
+fit6 <- survreg(S1 ~ age + factor(prttime), dist = 'weibull')
+summary(fit6)
+
+
+plot(x,1-pweibull(x,scale=1/  exp(sum(-fit6$coefficients[1],20*fit6$coefficients[2])),shape=fit6$scale),xlab   ="time",  ylab=expression(hat(S)*"(t)"),type="l", lty = 1) 
+lines(x,1-pweibull(x,scale=1/  exp  (sum(-fit6$coefficients[1], 25*fit6$coefficients[2])),shape=fit6$scale),col=2, lty = 1)
+lines(x,1-pweibull(x,scale=1/  exp  (sum(-fit6$coefficients, 19*fit6$coefficients[2])),shape=fit6$scale),col=1, lty = 2)
+lines(x,1-pweibull(x,scale=1/  exp  (sum(-fit6$coefficients, 24*fit6$coefficients[2])),shape=fit6$scale),col=2, lty = 2)
+legend("bottomleft",c("Age 20  + No Part-Time", "Age 25  +  No Part-Time","Age 20  + Part-Time", "Age 25  + Part-Time"), col= c(1,2,1,2), lty = c(1,1,2,2), bty = "n")
+
+```
+
+Our summary shows that both of our variables are very significant, and these curves seem quite distinct by inspection as well. Additionallly, it shows that those without a part time job tend to take longer to graduate, and those with a higher enrollment age also take longer to graduate.
+
+
+#####3. Consider the GPA variable. It may be more informative to examine a binary version of this variable, e.g. if the student had a failing GPA at the start of their 2nd year. Examine model diagnostics and write an interpretive paragraph. Also, examine and explain how this consideration alters your model from your best model in (2). Is there any concern with altering the GPA variable in this way?
+
+We begin by constructing our GPA variable as a factor.
+```{r}
+gpaf <- gpa > 2
+fit7 <- survfit(S1 ~ gpaf)
+plot(fit7, xlab = 'time', ylab = expression(hat(S)*(t)),
+     col = c(1,2))
+legend("bottomright", c("Failing", "Passing"), col = c(1,2), lty = 1, bty = "n")
+survdiff(S1 ~ gpaf)
+```
+
+This shows that GPA is not a significant factor for time to graduation. This does not alter our model. It is worth considering that there may be an issue with censoring as those with a failing GPA likely do not graduate. 
+
+#####4. Fit a logistic model for the event indicator rather than a survival model (pick your covariate set from either 2 or 3). Make interpretations and comparisons. Is this a better way to examine this data? Why or why not?
+
+We begin by constructing our model using the covariates from step 2.
+
+
+```{r}
+library(pROC)
+gfit <- glm(event ~ prttime + age, family = "binomial", data = dat)
+preds <- predict(gfit, dat[,4:5])
+nroc <-roc(event, preds)
+auc(nroc)
+plot(nroc)
+```
+
+This seems to be a better way to examine who will end up graduating or not, but does not factor in the amount of time it will take.
+
+
+
+
+
+
+
+
