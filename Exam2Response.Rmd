@@ -135,13 +135,14 @@ We begin by constructing our model using the covariates from step 2.
 ```{r}
 library(pROC)
 gfit <- glm(event ~ prttime + age, family = "binomial", data = dat)
+summary(gfit)
 preds <- predict(gfit, dat[,4:5])
 nroc <-roc(event, preds)
 auc(nroc)
 plot(nroc)
 ```
 
-This seems to be a better way to examine who will end up graduating or not, but does not factor in the amount of time it will take.
+This seems to be a better way to examine who will end up graduating or not, but does not factor in the amount of time it will take. Both tools could be useful depending on your whether or not you are interested in time until graduation.
 
 
 
